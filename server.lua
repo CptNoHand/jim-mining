@@ -1,406 +1,158 @@
-QBCore = nil
+local QBCore = exports['qb-core']:GetCoreObject()
+RegisterNetEvent('QBCore:Server:UpdateObject', function() if source ~= '' then return false end QBCore = exports['qb-core']:GetCoreObject() end)
 
-QBCore = exports['qb-core']:GetCoreObject()
+---Crafting
+RegisterServerEvent('jim-mining:GetItem', function(data)
+	local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+	--This grabs the table from client and removes the item requirements
+	if data.craftable[data.tablenumber]["amount"] then amount = data.craftable[data.tablenumber]["amount"] else amount = 1 end
+	for k,v in pairs(data.craftable[data.tablenumber][data.item]) do
+		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[tostring(k)], "remove", v)
+		Player.Functions.RemoveItem(tostring(k), v)
+		if Config.Debug then print("^5Debug^7: ^1Removing ^2from Player^7(^2"..src.."^7) '^6"..QBCore.Shared.Items[k].label.."^7(^2x^6"..v.."^7)'") end
+	end
+	--This should give the item, while the rest removes the requirements
+	Player.Functions.AddItem(data.item, amount)
+	TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[data.item], "add", amount)
+	if Config.Debug then print("^5Debug^7: ^4Giving ^2Player^7(^2"..src.."^7) '^6"..QBCore.Shared.Items[data.item].label.."^7(^2x^6"..amount.."^7)'") end
+	TriggerClientEvent("jim-mining:CraftMenu", src, data)
+end)
 
-RegisterServerEvent('jim-mining:MineReward')
-AddEventHandler('jim-mining:MineReward', function()
+RegisterServerEvent('jim-mining:MineReward', function()
     local Player = QBCore.Functions.GetPlayer(source)
     local randomChance = math.random(1, 3)
-    Player.Functions.AddItem('stone', randomChance)
+    Player.Functions.AddItem('stone', randomChance, false, {["quality"] = nil})
     TriggerClientEvent("inventory:client:ItemBox", source, QBCore.Shared.Items["stone"], "add", randomChance)
 end)
 
 --Stone Cracking Checking Triggers
 --Command here to check if any stone is in inventory
-
-RegisterServerEvent('jim-mining:CrackReward')
-AddEventHandler('jim-mining:CrackReward', function()
-    local Player = QBCore.Functions.GetPlayer(source)
-    Player.Functions.RemoveItem('stone', 1)
-    TriggerClientEvent("inventory:client:ItemBox", source, QBCore.Shared.Items["stone"], "remove", 1)
-    local oreToGive = nil
-    oreToGive = math.random(1,#Config.RewardPool)
-    local amount = math.random(1, 2)
-    Player.Functions.AddItem(Config.RewardPool[oreToGive], amount)
-    TriggerClientEvent("inventory:client:ItemBox", source, QBCore.Shared.Items[Config.RewardPool[oreToGive]], "add", amount)
+RegisterServerEvent('jim-mining:CrackReward', function(cost)
+	local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    Player.Functions.RemoveItem('stone', cost)
+    TriggerClientEvent("inventory:client:ItemBox", src, QBCore.Shared.Items["stone"], "remove", 1)
+	for i = 1, math.random(1,3) do
+		local randItem = Config.CrackPool[math.random(1, #Config.CrackPool)]
+		amount = math.random(1, 2)
+		if Player.Functions.AddItem(randItem, amount) then
+			TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[randItem], 'add', amount)
+		else print("error, no space") end
+	end
 end)
 
-RegisterNetEvent("jim-mining:Selling")
-AddEventHandler("jim-mining:Selling", function(data)
+--Stone Cracking Checking Triggers
+--Command here to check if any stone is in inventory
+RegisterServerEvent('jim-mining:WashReward', function(cost)
+	local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    Player.Functions.RemoveItem('stone', cost)
+    TriggerClientEvent("inventory:client:ItemBox", src, QBCore.Shared.Items["stone"], "remove", cost)
+	for i = 1, math.random(1,2) do
+		local randItem = Config.WashPool[math.random(1, #Config.WashPool)]
+		amount = 1
+		Player.Functions.AddItem(randItem, amount)
+		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[randItem], 'add', amount)
+		randItem = nil
+	end
+end)
+
+RegisterServerEvent('jim-mining:PanReward', function()
+	local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+	for i = 1, math.random(1,3) do
+		local randItem = Config.PanPool[math.random(1, #Config.PanPool)]
+		amount = 1
+		Player.Functions.AddItem(randItem, amount)
+		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[randItem], 'add', amount)
+		randItem = nil
+	end
+end)
+
+RegisterNetEvent("jim-mining:Selling", function(data)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
-    local currentitem = data
-    if Player.Functions.GetItemByName(data) ~= nil then
-        local amount = Player.Functions.GetItemByName(data).amount
-        local pay = (amount * Config.SellItems[data])
-        Player.Functions.RemoveItem(data, amount)
+    if Player.Functions.GetItemByName(data.item) ~= nil then
+        local amount = Player.Functions.GetItemByName(data.item).amount
+        local pay = (amount * Config.SellItems[data.item])
+        Player.Functions.RemoveItem(data.item, amount)
         Player.Functions.AddMoney('cash', pay)
-        TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[data], 'remove', amount)
+        TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[data.item], 'remove', amount)
     else
-        TriggerClientEvent("QBCore:Notify", src, "You don't have any "..QBCore.Shared.Items[data].label, "error")
+        TriggerClientEvent("QBCore:Notify", src, Loc[Config.Lan].error["dont_have"].." "..QBCore.Shared.Items[data.item].label, "error")
     end
-    Citizen.Wait(1000)
 end)
 
-RegisterNetEvent("jim-mining:SellJewel")
-AddEventHandler("jim-mining:SellJewel", function(data)
-    local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
-    local currentitem = data
-    if Player.Functions.GetItemByName(data) ~= nil then
-        local amount = Player.Functions.GetItemByName(data).amount
-        local pay = (amount * Config.SellItems[data])
-        Player.Functions.RemoveItem(data, amount)
-        Player.Functions.AddMoney('cash', pay)
-        TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[data], 'remove', amount)
-    else
-        TriggerClientEvent("QBCore:Notify", src, "You don't have any "..QBCore.Shared.Items[data].label, "error")
+RegisterNetEvent('jim-mining:server:toggleItem', function(give, item, amount)
+	local src = source
+	if give == 0 or give == false then
+		if HasItem(src, item, amount or 1) then -- check if you still have the item
+			if QBCore.Functions.GetPlayer(src).Functions.RemoveItem(item, amount or 1) then
+				TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[item], "remove", amount or 1)
+			end
+		else TriggerEvent("jim-mining:server:DupeWarn", item, src) end -- if not boot the player
+	else
+		if QBCore.Functions.GetPlayer(src).Functions.AddItem(item, amount or 1) then
+			TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[item], "add", amount or 1)
+		end
+	end
+end)
+
+RegisterNetEvent("jim-mining:server:DupeWarn", function(item, newsrc)
+	local src = newsrc or source
+	local P = QBCore.Functions.GetPlayer(src)
+	print("^5DupeWarn: ^1"..P.PlayerData.charinfo.firstname.." "..P.PlayerData.charinfo.lastname.."^7(^1"..tostring(src).."^7) ^2Tried to remove item ^7('^3"..item.."^7')^2 but it wasn't there^7")
+	DropPlayer(src, "Kicked for attempting to duplicate items")
+	print("^5DupeWarn: ^1"..P.PlayerData.charinfo.firstname.." "..P.PlayerData.charinfo.lastname.."^7(^1"..tostring(src).."^7) ^2Dropped from server for item duplicating^7")
+end)
+
+function HasItem(source, items, amount)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return false end
+    local isTable = type(items) == 'table'
+    local isArray = isTable and table.type(items) == 'array' or false
+    local totalItems = #items
+    local count = 0
+    local kvIndex = 2
+    if isTable and not isArray then
+        totalItems = 0
+        for _ in pairs(items) do totalItems += 1 end
+        kvIndex = 1
     end
-    Citizen.Wait(1000)
-end)
+    if isTable then
+	if Config.Debug then print("^5Debug^7: ^3HasItem^7: ^2Checking if player^7(^6"..source.."^7)^2 has items^7") end
+        for k, v in pairs(items) do
+            local itemKV = {k, v}
+            local item = Player.Functions.GetItemByName(itemKV[kvIndex])
+            if item and ((amount and item.amount >= amount) or (not isArray and item.amount >= v) or (not amount and isArray)) then
+                count += 1
+            end
+        end
+        if count == totalItems then
+			if Config.Debug then print("^5Debug^7: ^3HasItem^7: ^2Items FOUND^7") end
+            return true
+        end
+    else -- Single item as stringHasItem(v, 1)
+		if Config.Debug then print("^5Debug^7: ^3HasItem^7: ^2Checking if player^7(^6"..source.."^7)^2 has items^7") end
+		local item = Player.Functions.GetItemByName(items)
+        if item and (not amount or (item and amount and item.amount >= amount)) then
+            return true
+        end
+    end
+	if Config.Debug then print("^5Debug^7: ^3HasItem^7: ^2Items Not FOUND^7") end
+    return false
+end
 
---Attempt at making simple crafting/smelting recipies
---Basically choose from the menus which provides an ID, it reads what is required, then gives the result
---shows error if requirements aren't met
-
---These command checks the requirements for each recipe, had to keep separate to keep control of when it happens.
-QBCore.Functions.CreateCallback('jim-mining:Smelting:Check:1', function(source, cb)
-	local src = source
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('copperore') ~= nil then cb(true)
-	else cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Smelting:Check:2', function(source, cb)
-	local src = source
-    local Player = QBCore.Functions.GetPlayer(source)
-	local item = Player.Functions.GetItemByName('goldore')
-	if item ~= nil and item.amount >= 4 then cb(true)
-	else cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Smelting:Check:3', function(source, cb)
-	local src = source
-    local Player = QBCore.Functions.GetPlayer(source) 
-	if Player.Functions.GetItemByName('ironore') ~= nil then cb(true)
-	else cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Smelting:Check:4', function(source, cb)
-	local src = source
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('ironore') ~= nil and Player.Functions.GetItemByName('carbon') ~= nil then cb(true)
-	else  cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Smelting:Check:5', function(source, cb)
-	local src = source
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('bottle') ~= nil then cb(true)
-	else cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Smelting:Check:6', function(source, cb)
-	local src = source
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('can') ~= nil then cb(true)
-	else cb(false)
-	end
-end)
-
---These obviously are the rewards for each ID
---This is called after the animation/progressbar is completed
-RegisterServerEvent('jim-mining:Smelting:Reward')
-AddEventHandler('jim-mining:Smelting:Reward', function(data)
-    local src = source
-	local Player = QBCore.Functions.GetPlayer(source)
-	if data == 1 then
-		Player.Functions.RemoveItem('copperore', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['copperore'], 'remove', 1)
-		Player.Functions.AddItem("copper", 10)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["copper"], 'add', 10)
-	elseif data == 2 then
-		Player.Functions.RemoveItem('goldore', 4)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['goldore'], 'remove', 4)
-		Player.Functions.AddItem("goldbar", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["goldbar"], 'add', 1)
-	elseif data == 3 then
-		Player.Functions.RemoveItem('ironore', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['ironore'], 'remove', 1)
-		Player.Functions.AddItem("iron", 10)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["iron"], 'add', 10)
-	elseif data == 4 then
-		Player.Functions.RemoveItem('ironore', 1)
-		Player.Functions.RemoveItem('carbon', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['ironore'], 'remove', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['carbon'], 'remove', 1)
-		Player.Functions.AddItem("steel", 2)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["steel"], 'add', 2)
-	elseif data == 5 then
-		Player.Functions.RemoveItem('bottle', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['bottle'], 'remove', 1)
-		Player.Functions.AddItem("glass", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["glass"], 'add', 1)
-	elseif data == 6 then
-		Player.Functions.RemoveItem('can', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['can'], 'remove', 1)
-		Player.Functions.AddItem("aluminum", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["aluminum"], 'add', 1)
-	end
-end)
-
-------------------------------------------------------------
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:Tools', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('handdrill') ~= nil and Player.Functions.GetItemByName('drillbit') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:1', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('uncut_emerald') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:2', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('uncut_ruby') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:3', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('uncut_diamond') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:4', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('uncut_sapphire') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:5', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('goldbar') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:6', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('gold_ring') ~= nil and Player.Functions.GetItemByName('diamond') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:7', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('gold_ring') ~= nil and Player.Functions.GetItemByName('emerald') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:8', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('gold_ring') ~= nil and Player.Functions.GetItemByName('ruby') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:9', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('gold_ring') ~= nil and Player.Functions.GetItemByName('sapphire') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:10', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('goldbar') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:11', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('goldbar') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:12', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('goldchain') ~= nil and Player.Functions.GetItemByName('diamond') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:13', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('goldchain') ~= nil and Player.Functions.GetItemByName('emerald') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:14', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('goldchain') ~= nil and Player.Functions.GetItemByName('ruby') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-QBCore.Functions.CreateCallback('jim-mining:Cutting:Check:15', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-	if Player.Functions.GetItemByName('goldchain') ~= nil and Player.Functions.GetItemByName('sapphire') ~= nil then
-		cb(true)
-	else 
-		cb(false)
-	end
-end)
-
-RegisterServerEvent('jim-mining:Cutting:Reward')
-AddEventHandler('jim-mining:Cutting:Reward', function(data)
-    local src = source
-	local Player = QBCore.Functions.GetPlayer(source)
-	local breackChance = math.random(1,10)
-	if breackChance >= 9 then
-		Player.Functions.RemoveItem('drillbit', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['drillbit'], 'remove', 1)
-	end
-	if data == 1 then
-		Player.Functions.RemoveItem('uncut_emerald', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['uncut_emerald'], 'remove', 1)
-		Player.Functions.AddItem("emerald", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["emerald"], 'add', 1)
-	elseif data == 2 then
-		Player.Functions.RemoveItem('uncut_ruby', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['uncut_ruby'], 'remove', 1)
-		Player.Functions.AddItem("ruby", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["ruby"], 'add', 1)
-	elseif data == 3 then
-		Player.Functions.RemoveItem('uncut_diamond', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['uncut_diamond'], 'remove', 1)
-		Player.Functions.AddItem("diamond", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["diamond"], 'add', 1)
-	elseif data == 4 then
-		Player.Functions.RemoveItem('uncut_sapphire', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['uncut_sapphire'], 'remove', 1)
-		Player.Functions.AddItem("sapphire", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["sapphire"], 'add', 1)
-		
-	elseif data == 5 then
-		Player.Functions.RemoveItem('goldbar', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['goldbar'], 'remove', 1)
-		Player.Functions.AddItem("gold_ring", 3)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["gold_ring"], 'add', 3)
-	elseif data == 6 then
-		Player.Functions.RemoveItem('gold_ring', 1)
-		Player.Functions.RemoveItem('diamond', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['gold_ring'], 'remove', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['diamond'], 'remove', 1)
-		Player.Functions.AddItem("diamond_ring", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["diamond_ring"], 'add', 1)
-	elseif data == 7 then
-		Player.Functions.RemoveItem('gold_ring', 1)
-		Player.Functions.RemoveItem('emerald', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['gold_ring'], 'remove', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['emerald'], 'remove', 1)
-		Player.Functions.AddItem("emerald_ring", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["emerald_ring"], 'add', 1)
-	elseif data == 8 then
-		Player.Functions.RemoveItem('gold_ring', 1)
-		Player.Functions.RemoveItem('ruby', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['gold_ring'], 'remove', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['ruby'], 'remove', 1)
-		Player.Functions.AddItem("ruby_ring", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["ruby_ring"], 'add', 1)
-	elseif data == 9 then
-		Player.Functions.RemoveItem('gold_ring', 1)
-		Player.Functions.RemoveItem('sapphire', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['gold_ring'], 'remove', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['sapphire'], 'remove', 1)
-		Player.Functions.AddItem("sapphire_ring", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["sapphire_ring"], 'add', 1)
-
-	elseif data == 10 then
-		Player.Functions.RemoveItem('goldbar', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['goldbar'], 'remove', 1)
-		Player.Functions.AddItem("goldchain", 3)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["goldchain"], 'add', 3)
-	elseif data == 11 then
-		Player.Functions.RemoveItem('goldbar', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['goldbar'], 'remove', 1)
-		Player.Functions.AddItem("10kgoldchain", 2)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["10kgoldchain"], 'add', 2)
-	elseif data == 12 then
-		Player.Functions.RemoveItem('goldchain', 1)
-		Player.Functions.RemoveItem('diamond', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['goldchain'], 'remove', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['diamond'], 'remove', 1)
-		Player.Functions.AddItem("diamond_necklace", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["diamond_necklace"], 'add', 1)
-	elseif data == 13 then
-		Player.Functions.RemoveItem('goldchain', 1)
-		Player.Functions.RemoveItem('emerald', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['goldchain'], 'remove', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['emerald'], 'remove', 1)
-		Player.Functions.AddItem("emerald_necklace", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["emerald_necklace"], 'add', 1)
-	elseif data == 14 then
-		Player.Functions.RemoveItem('goldchain', 1)
-		Player.Functions.RemoveItem('ruby', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['goldchain'], 'remove', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['ruby'], 'remove', 1)
-		Player.Functions.AddItem("ruby_necklace", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["ruby_necklace"], 'add', 1)
-	elseif data == 15 then
-		Player.Functions.RemoveItem('goldchain', 1)
-		Player.Functions.RemoveItem('sapphire', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['goldchain'], 'remove', 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['sapphire'], 'remove', 1)
-		Player.Functions.AddItem("sapphire_necklace", 1)
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items["sapphire_necklace"], 'add', 1)
+AddEventHandler('onResourceStart', function(resource) if GetCurrentResourceName() ~= resource then return end
+	for k, v in pairs(Config.SellItems) do if not QBCore.Shared.Items[k] then print("Selling: Missing Item from QBCore.Shared.Items: '"..k.."'") end end
+	for i = 1, #Config.CrackPool do if not QBCore.Shared.Items[Config.CrackPool[i]] then print("CrackPool: Missing Item from QBCore.Shared.Items: '"..Config.CrackPool[i].."'") end end
+	for i = 1, #Config.WashPool do if not QBCore.Shared.Items[Config.WashPool[i]] then print("WashPool: Missing Item from QBCore.Shared.Items: '"..Config.WashPool[i].."'") end end
+	for i = 1, #Config.PanPool do if not QBCore.Shared.Items[Config.PanPool[i]] then print("PanPool: Missing Item from QBCore.Shared.Items: '"..Config.PanPool[i].."'") end end
+	for i = 1, #Config.Items.items do if not QBCore.Shared.Items[Config.Items.items[i].name] then print("Shop: Missing Item from QBCore.Shared.Items: '"..Config.Items.items[i].name.."'") end end
+	local itemcheck = {}
+	for _, v in pairs(Crafting) do for _, b in pairs(v) do for k, l in pairs(b) do if k ~= "amount" then itemcheck[k] = {} for j in pairs(l) do itemcheck[j] = {} end end end end end
+	for k in pairs(itemcheck) do
+		if not QBCore.Shared.Items[k] then print("Crafting recipe couldn't find item '"..k.."' in the shared") end
 	end
 end)
